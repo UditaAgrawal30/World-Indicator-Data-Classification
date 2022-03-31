@@ -1,0 +1,145 @@
+---
+title: "World Indicator Data Analysis"
+author: "Udita Agrawal"
+---
+
+
+```{r}
+##TASK 2
+library(clValid)
+library(NbClust)
+library(ClusterR)
+library(ggplot2)
+library(ggcorrplot)
+library(dplyr)
+library(factoextra)
+
+#importing the dataset
+world <- read.csv("World Indicators.csv", header=TRUE, check.names = FALSE)
+summary(world)
+str(world)
+```
+
+```{r}
+#removing Lending Interest and Energy Usage due to NA values
+world <- subset(world[,-c(4,11)])
+
+#converting character columns into numerical
+world$`Business Tax Rate` <- as.numeric(gsub("%","", world$`Business Tax Rate`))
+world$GDP <- as.numeric(gsub("[\\$,]","", world$GDP))
+world$`Health Exp/Capita` <- as.numeric(gsub("[\\$,]","", world$`Health Exp/Capita`))
+```
+
+```{r}
+#finding correlation matrix
+world <- na.omit(world)
+corr_data <- cor(world[,1:16])
+corr_data
+```
+
+```{r}
+#selecting parameters for modelling
+boxplot(world$GDP)
+
+# since GDP has a lot of outliers and it is absolute value, k means is sensitive to outliers. Hence, selecting parameters that define the Human Development Index  and eventually the development status namely: 
+ ##- Life Expectancy Female (since expectancy of Male and Female are identically corelated to all parameters)
+ ## Infant Mortality 
+ ## Health Expenditure%GDP
+ ## Health Expenditure/Capita
+ ## Urban Population (since it is correlated with Mobile usage and internet usage)
+
+world_s <- subset(world[,c(5,6,8,10,16)])
+```
+
+```{r}
+#scaling the data
+world_s <- data.frame(scale(world_s))
+
+
+# applying elbow method to see the optimum number of clusters 
+fviz_nbclust(world_s, kmeans, method="silhouette")
+#suggested number of clusters=3
+```
+
+```{r}
+#applying clustering for k= 2:5 and finding silhouette index for optimization i.e. performing internal validation
+for (i in 2:5){
+  km <- kmeans(world_s,i, nstart=25)
+  sil<- silhouette(km$cluster, dist(world_s))
+  print( mean(sil[,3]))
+}
+# mathematically k means is giving best solution for k=3
+```
+
+```{r}
+
+
+for (i in 2:5){
+  hc <- hclust(dist(world_s),method="single")
+  hc$cluster <- cutree(hc, i)
+  sil<- silhouette(hc$cluster, dist(world_s))
+  print( mean(sil[,3]))
+}
+
+#mathematically Hierarchical clustering with single linkage is giving best solution for k=2
+
+for (i in 2:5){
+  hc <- hclust(dist(world_s),method="complete")
+  hc$cluster <- cutree(hc, i)
+  sil<- silhouette(hc$cluster, dist(world_s))
+  print( mean(sil[,3]))
+}
+
+#mathematically Hierarchical clustering with complete linkage is giving best solution for k =2
+#out of three, Silhouette index is maximized for Hierarchical clustering with single linkage for k=2, hence applying
+
+
+hc <- hclust(dist(world_s),method="single")
+hc$cluster <- cutree(hc,2)
+world$cluster_hc <- hc$cluster 
+
+#however, dividing into two clusters is not giving the best result as United States is put in one cluster and rest all in one which is not desired.
+
+```
+
+```{r}
+#Using K=3 determined using elbow method and dividing countries into categories Developed, Developing and Under Developed countries
+hc <- hclust(dist(world_s),method="complete")
+hc$cluster <- cutree(hc,3)
+world$cluster_hc <- hc$cluster 
+
+hc <- hclust(dist(world_s),method="single")
+hc$cluster <- cutree(hc,3)
+world$cluster_hc_s<- hc$cluster 
+
+km <- kmeans(world_s,3,nstart=30)
+world$km_cluster <- km$cluster
+
+#Based on previous internal validation calculations, Hierarchical clustering with Single linkage gives the best silhouette index
+
+
+
+Country <- subset(world[,c(18:21)])
+Country_final <- subset(Country[,c(1,4)])
+
+Country_final <- Country_final%>%
+  arrange(km_cluster)
+
+
+#The countries are arranged as per clusters. 1: Developed Nations, 2: Emerging or Underdeveloped Nations, 3: Developing Nation in terms of HDI 
+
+world$km_cluster <- as.character(world$km_cluster)
+#Now plotting some graphs
+world$km_cluster <- as.character(world$km_cluster)
+ggplot(world, aes(x=GDP, y=`Infant Mortality Rate`, color=km_cluster)) + ggtitle("Infant Mortality Rate Vs GDP")  +geom_point()+ scale_fill_discrete(name='Type', labels=c("Developed","Emerging/UnderDeveloped","Developing"))
+
+ggplot(world, aes(x=GDP, y=`Health Exp/Capita`, color=km_cluster))+ ggtitle("Health Expenditure/Capita Vs GDP") +geom_point()
+
+ggplot(world, aes(x=GDP, y=`Life Expectancy Female`, color=km_cluster ))+ggtitle("Life Expectancy Female Vs GDP")+geom_point()
+
+#Patterns in all the three graphs confirm our assumption of dividing data into 3 classes
+
+```
+
+
+
