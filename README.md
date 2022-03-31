@@ -1,1 +1,2 @@
 # World-Indicator-Data-Classification
+World indicator data is taken from World Bank and based on Human Development Index parameters, countries are classified into Emerging, Developing and Developed Nations. Predictors are selected using explaratory data analysis and then clustering is done using K means and Hierarchical methods. Internal Validation metrics are used to determine the optimum number of clusters. Graphs are plotted to see the results of clustering.
